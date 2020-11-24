@@ -1,0 +1,59 @@
+# This workflow will build a Java project with Maven
+# For more information see: https://help.github.com/actions/language-and-framework-guides/building-and-testing-java-with-maven
+
+name: Java CI with Maven and dg
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up JDK 1.8
+      uses: actions/setup-java@v1
+      with:
+        java-version: 1.8
+    - name: Build with Maven
+      run: mvn -B package --file pom.xml
+
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v2.2.0
+      with:
+        name: my-app-1.0-SNAPSHOT.jar
+        path: target
+        if-no-files-found: warn
+        retention-days: 2
+
+    # This step won't be required once the action is public
+    - name: Checkout the action from private repository
+      uses: actions/checkout@v2
+      with:
+        repository: bbk79/codeguru-reviewer-security-scanner
+        ref: refs/heads/master
+        token: ${{ secrets.TOKEN }}
+        path: ./.github/actions/codeguru-reviewer-security-scanner
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: AWS CodeGuru Reviewer Security Scanner
+      uses: ./.github/actions/codeguru-reviewer-security-scanner
+      with:
+        src-root: src/main/java # Java source code root
+        build-root: target # build artifact(s) directory
+
+    # Uploads results.sarif to GitHub repository using the upload-sarif action    
+    - uses: github/codeql-action/upload-sarif@v1
+      with:
+        sarif_file: codeguru-results.sarif.json
